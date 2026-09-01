@@ -31,7 +31,7 @@ The menu integration modifies Jellyfin Web only. Once an exclusion has been crea
 3. Add the Remove Series repository:
 
    ```text
-   https://raw.githubusercontent.com/Marshmello0w/jellyfin-plugin-remove-series/main/manifest.json
+   https://raw.githubusercontent.com/Marshmello0w/jellyfin-plugin-remove-series/refs/heads/main/manifest.json
    ```
 
 4. Install **File Transformation**, then install **Remove Series**.
