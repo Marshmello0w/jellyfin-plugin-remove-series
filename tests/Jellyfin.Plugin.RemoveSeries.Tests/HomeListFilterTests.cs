@@ -17,22 +17,24 @@ public sealed class HomeListFilterTests : IDisposable
     private readonly string _directory = Path.Combine(Path.GetTempPath(), $"remove-series-filter-tests-{Guid.NewGuid():N}");
 
     [Fact]
-    public async Task SeriesCutoffHidesOldResumeEpisodesButKeepsEpisodesPlayedLater()
+    public async Task SeriesExclusionHidesOldResumeEpisodesButKeepsReactivatedEpisode()
     {
         Guid userId = Guid.NewGuid();
         Guid hiddenSeries = Guid.NewGuid();
         Guid visibleSeries = Guid.NewGuid();
         ExclusionStore store = new(_directory, NullLogger<ExclusionStore>.Instance);
-        DateTime cutoff = DateTime.UtcNow;
-        await store.AddContinueWatchingSeriesCutoffAsync(userId, hiddenSeries, cutoff);
+        Guid oldEpisode = Guid.NewGuid();
+        Guid reactivatedEpisode = Guid.NewGuid();
+        await store.AddContinueWatchingSeriesAsync(userId, hiddenSeries);
+        await store.ReactivateAfterPlaybackStartAsync(userId, reactivatedEpisode, hiddenSeries);
         HomeListFilter filter = new(store, NullLogger<HomeListFilter>.Instance);
         QueryResult<BaseItemDto> queryResult = new(
             0,
             3,
             [
-                new BaseItemDto { Id = Guid.NewGuid(), SeriesId = hiddenSeries, UserData = new UserItemDataDto { Key = "old", LastPlayedDate = cutoff.AddMinutes(-5) } },
-                new BaseItemDto { Id = Guid.NewGuid(), SeriesId = hiddenSeries, UserData = new UserItemDataDto { Key = "new", LastPlayedDate = cutoff.AddMinutes(5) } },
-                new BaseItemDto { Id = Guid.NewGuid(), SeriesId = visibleSeries, UserData = new UserItemDataDto { Key = "visible", LastPlayedDate = cutoff.AddMinutes(-5) } }
+                new BaseItemDto { Id = oldEpisode, SeriesId = hiddenSeries },
+                new BaseItemDto { Id = reactivatedEpisode, SeriesId = hiddenSeries },
+                new BaseItemDto { Id = Guid.NewGuid(), SeriesId = visibleSeries }
             ]);
         (ActionExecutingContext executing, ActionExecutedContext executed) = CreateContexts(userId, "Items", "GetResumeItems", queryResult);
 

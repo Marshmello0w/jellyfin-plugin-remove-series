@@ -28,8 +28,7 @@ public sealed class PlaybackStartConsumer : IEventConsumer<PlaybackStartEventArg
 
         try
         {
-            await _store.RemoveContinueWatchingEpisodeAsync(userId, episode.Id).ConfigureAwait(false);
-            await _store.RemoveNextUpSeriesAsync(userId, episode.SeriesId).ConfigureAwait(false);
+            await _store.ReactivateAfterPlaybackStartAsync(userId, episode.Id, episode.SeriesId).ConfigureAwait(false);
         }
         catch (Exception exception)
         {

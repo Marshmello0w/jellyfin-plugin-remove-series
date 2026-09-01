@@ -56,30 +56,79 @@ public sealed class ExclusionStore
     }
 
     public Task AddContinueWatchingEpisodeAsync(Guid userId, Guid episodeId, CancellationToken cancellationToken = default) =>
-        MutateAsync(userId, document => document.ContinueWatching.Add(episodeId), cancellationToken);
+        MutateAsync(
+            userId,
+            document => document.ContinueWatchingAllowedEpisodes.Remove(episodeId)
+                | document.ContinueWatchingEpisodes.Add(episodeId),
+            cancellationToken);
 
     public Task RemoveContinueWatchingEpisodeAsync(Guid userId, Guid episodeId, CancellationToken cancellationToken = default) =>
-        MutateAsync(userId, document => document.ContinueWatching.Remove(episodeId), cancellationToken);
+        MutateAsync(
+            userId,
+            document => document.ContinueWatching.Remove(episodeId)
+                | document.ContinueWatchingEpisodes.Remove(episodeId),
+            cancellationToken);
 
-    public Task AddContinueWatchingSeriesCutoffAsync(
+    public Task AddContinueWatchingSeriesAsync(
         Guid userId,
         Guid seriesId,
-        DateTime cutoffUtc,
         CancellationToken cancellationToken = default) =>
         MutateAsync(
             userId,
             document =>
             {
-                DateTime normalized = cutoffUtc.ToUniversalTime();
-                bool changed = !document.ContinueWatchingSeriesCutoffs.TryGetValue(seriesId, out DateTime current)
-                    || current != normalized;
-                document.ContinueWatchingSeriesCutoffs[seriesId] = normalized;
+                bool changed = document.ContinueWatching.Remove(seriesId)
+                    | document.ContinueWatchingSeriesCutoffs.Remove(seriesId)
+                    | document.ContinueWatchingSeries.Add(seriesId);
+                foreach (Guid episodeId in document.ContinueWatchingAllowedEpisodes
+                    .Where(pair => pair.Value == seriesId)
+                    .Select(pair => pair.Key)
+                    .ToArray())
+                {
+                    changed |= document.ContinueWatchingAllowedEpisodes.Remove(episodeId);
+                }
+
                 return changed;
             },
             cancellationToken);
 
-    public Task RemoveContinueWatchingSeriesCutoffAsync(Guid userId, Guid seriesId, CancellationToken cancellationToken = default) =>
-        MutateAsync(userId, document => document.ContinueWatchingSeriesCutoffs.Remove(seriesId), cancellationToken);
+    public Task RemoveContinueWatchingSeriesAsync(Guid userId, Guid seriesId, CancellationToken cancellationToken = default) =>
+        MutateAsync(
+            userId,
+            document => document.ContinueWatching.Remove(seriesId)
+                | document.ContinueWatchingSeriesCutoffs.Remove(seriesId)
+                | document.ContinueWatchingSeries.Remove(seriesId),
+            cancellationToken);
+
+    public Task ReactivateAfterPlaybackStartAsync(
+        Guid userId,
+        Guid episodeId,
+        Guid seriesId,
+        CancellationToken cancellationToken = default) =>
+        MutateAsync(
+            userId,
+            document =>
+            {
+                bool changed = document.ContinueWatching.Remove(episodeId)
+                    | document.ContinueWatchingEpisodes.Remove(episodeId)
+                    | document.NextUp.Remove(seriesId);
+                bool migrated = document.ContinueWatching.Remove(seriesId)
+                    | document.ContinueWatchingSeriesCutoffs.Remove(seriesId);
+                if (migrated)
+                {
+                    changed |= document.ContinueWatchingSeries.Add(seriesId);
+                }
+
+                if (document.ContinueWatchingSeries.Contains(seriesId))
+                {
+                    changed |= !document.ContinueWatchingAllowedEpisodes.TryGetValue(episodeId, out Guid allowedSeries)
+                        || allowedSeries != seriesId;
+                    document.ContinueWatchingAllowedEpisodes[episodeId] = seriesId;
+                }
+
+                return changed;
+            },
+            cancellationToken);
 
     public Task AddNextUpSeriesAsync(Guid userId, Guid seriesId, CancellationToken cancellationToken = default) =>
         MutateAsync(userId, document => document.NextUp.Add(seriesId), cancellationToken);

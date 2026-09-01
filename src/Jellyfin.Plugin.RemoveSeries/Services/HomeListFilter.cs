@@ -84,25 +84,29 @@ public sealed class HomeListFilter : IAsyncActionFilter
             return item.SeriesId.HasValue && snapshot.NextUp.Contains(item.SeriesId.Value);
         }
 
-        if (snapshot.ContinueWatching.Contains(item.Id))
+        if (snapshot.ContinueWatching.Contains(item.Id) || snapshot.ContinueWatchingEpisodes.Contains(item.Id))
         {
             return true;
         }
 
-        if (!item.SeriesId.HasValue
-            || !snapshot.ContinueWatchingSeriesCutoffs.TryGetValue(item.SeriesId.Value, out DateTime cutoff))
+        if (snapshot.ContinueWatchingAllowedEpisodes.ContainsKey(item.Id))
         {
             return false;
         }
 
-        DateTime? lastPlayed = item.UserData?.LastPlayedDate;
-        return !lastPlayed.HasValue || lastPlayed.Value.ToUniversalTime() <= cutoff.ToUniversalTime();
+        return item.SeriesId.HasValue
+            && (snapshot.ContinueWatching.Contains(item.SeriesId.Value)
+                || snapshot.ContinueWatchingSeries.Contains(item.SeriesId.Value)
+                || snapshot.ContinueWatchingSeriesCutoffs.ContainsKey(item.SeriesId.Value));
     }
 
     private static bool HasExclusions(ExclusionDocument snapshot, ExclusionSurface surface) =>
         surface == ExclusionSurface.NextUp
             ? snapshot.NextUp.Count > 0
-            : snapshot.ContinueWatching.Count > 0 || snapshot.ContinueWatchingSeriesCutoffs.Count > 0;
+            : snapshot.ContinueWatching.Count > 0
+                || snapshot.ContinueWatchingEpisodes.Count > 0
+                || snapshot.ContinueWatchingSeries.Count > 0
+                || snapshot.ContinueWatchingSeriesCutoffs.Count > 0;
 
     internal static bool TryGetSurface(ActionExecutingContext context, out ExclusionSurface surface)
     {

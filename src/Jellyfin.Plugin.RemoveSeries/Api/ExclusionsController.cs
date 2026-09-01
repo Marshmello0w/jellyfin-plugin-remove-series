@@ -65,7 +65,7 @@ public sealed class ExclusionsController : ControllerBase
         else if (surface == ExclusionSurface.ContinueWatching)
         {
             targetId = episode.SeriesId;
-            await _store.AddContinueWatchingSeriesCutoffAsync(userId.Value, targetId, DateTime.UtcNow, cancellationToken).ConfigureAwait(false);
+            await _store.AddContinueWatchingSeriesAsync(userId.Value, targetId, cancellationToken).ConfigureAwait(false);
         }
         else
         {
@@ -120,7 +120,7 @@ public sealed class ExclusionsController : ControllerBase
         }
         else if (parsedSurface == ExclusionSurface.ContinueWatching)
         {
-            await _store.RemoveContinueWatchingSeriesCutoffAsync(userId.Value, targetId, cancellationToken).ConfigureAwait(false);
+            await _store.RemoveContinueWatchingSeriesAsync(userId.Value, targetId, cancellationToken).ConfigureAwait(false);
         }
         else
         {

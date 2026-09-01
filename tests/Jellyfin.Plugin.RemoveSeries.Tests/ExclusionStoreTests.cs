@@ -15,16 +15,15 @@ public sealed class ExclusionStoreTests : IDisposable
         Guid continueEpisode = Guid.NewGuid();
         Guid continueSeries = Guid.NewGuid();
         Guid nextUpSeries = Guid.NewGuid();
-        DateTime cutoff = DateTime.UtcNow;
         ExclusionStore store = CreateStore();
 
         await store.AddContinueWatchingEpisodeAsync(userId, continueEpisode);
-        await store.AddContinueWatchingSeriesCutoffAsync(userId, continueSeries, cutoff);
+        await store.AddContinueWatchingSeriesAsync(userId, continueSeries);
         await store.AddNextUpSeriesAsync(userId, nextUpSeries);
 
         ExclusionDocument persisted = await CreateStore().GetSnapshotAsync(userId);
-        Assert.Contains(continueEpisode, persisted.ContinueWatching);
-        Assert.Equal(cutoff, persisted.ContinueWatchingSeriesCutoffs[continueSeries]);
+        Assert.Contains(continueEpisode, persisted.ContinueWatchingEpisodes);
+        Assert.Contains(continueSeries, persisted.ContinueWatchingSeries);
         Assert.Contains(nextUpSeries, persisted.NextUp);
     }
 
@@ -38,17 +37,36 @@ public sealed class ExclusionStoreTests : IDisposable
         ExclusionStore store = CreateStore();
         await store.AddContinueWatchingEpisodeAsync(userId, startedEpisode);
         await store.AddContinueWatchingEpisodeAsync(userId, otherEpisode);
-        await store.AddContinueWatchingSeriesCutoffAsync(userId, seriesId, DateTime.UtcNow);
+        await store.AddContinueWatchingSeriesAsync(userId, seriesId);
         await store.AddNextUpSeriesAsync(userId, seriesId);
 
-        await store.RemoveContinueWatchingEpisodeAsync(userId, startedEpisode);
-        await store.RemoveNextUpSeriesAsync(userId, seriesId);
+        await store.ReactivateAfterPlaybackStartAsync(userId, startedEpisode, seriesId);
 
         ExclusionDocument result = await store.GetSnapshotAsync(userId);
-        Assert.DoesNotContain(startedEpisode, result.ContinueWatching);
-        Assert.Contains(otherEpisode, result.ContinueWatching);
-        Assert.Contains(seriesId, result.ContinueWatchingSeriesCutoffs.Keys);
+        Assert.DoesNotContain(startedEpisode, result.ContinueWatchingEpisodes);
+        Assert.Contains(otherEpisode, result.ContinueWatchingEpisodes);
+        Assert.Contains(seriesId, result.ContinueWatchingSeries);
+        Assert.Equal(seriesId, result.ContinueWatchingAllowedEpisodes[startedEpisode]);
         Assert.DoesNotContain(seriesId, result.NextUp);
+    }
+
+    [Fact]
+    public async Task PlaybackMigratesLegacySeriesExclusionAndAllowsOnlyStartedEpisode()
+    {
+        Guid userId = Guid.NewGuid();
+        Guid seriesId = Guid.NewGuid();
+        Guid startedEpisode = Guid.NewGuid();
+        ExclusionStore store = CreateStore();
+        await File.WriteAllTextAsync(
+            Path.Combine(_directory, $"{userId:N}.json"),
+            $$"""{"continueWatching":["{{seriesId}}"],"nextUp":[]}""");
+
+        await store.ReactivateAfterPlaybackStartAsync(userId, startedEpisode, seriesId);
+
+        ExclusionDocument result = await store.GetSnapshotAsync(userId);
+        Assert.DoesNotContain(seriesId, result.ContinueWatching);
+        Assert.Contains(seriesId, result.ContinueWatchingSeries);
+        Assert.Equal(seriesId, result.ContinueWatchingAllowedEpisodes[startedEpisode]);
     }
 
     [Fact]
