@@ -8,6 +8,14 @@
     "overview": "Non-destructive per-user cleanup for Jellyfin home rows.",
     "versions": [
       {
+        "version": "1.1.0.0",
+        "changelog": "See the linked GitHub release notes.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/Marshmello0w/jellyfin-plugin-remove-series/releases/download/v1.1.0/jellyfin-plugin-remove-series_1.1.0.0.zip",
+        "checksum": "8a01b07842d35fa66b1d62fd598f39f0",
+        "timestamp": "2026-09-01T23:28:05Z"
+      },
+      {
         "version": "1.0.0.0",
         "changelog": "See the linked GitHub release notes.",
         "targetAbi": "10.11.0.0",
