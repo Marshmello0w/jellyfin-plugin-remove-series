@@ -3,28 +3,36 @@ let lastContext = null;
 
 const text = navigator.language?.toLowerCase().startsWith('de')
     ? {
-        continueWatching: 'Serie aus Weiterschauen entfernen',
+        continueWatchingSeries: 'Serie aus Weiterschauen entfernen',
+        continueWatchingEpisode: 'Folge aus Weiterschauen entfernen',
         nextUp: 'Serie aus Als Nächstes entfernen',
-        title: 'Serie entfernen?',
-        message: (name, list) => `„${name}“ wird aus „${list}“ entfernt. Dein Wiedergabestand bleibt unverändert.`,
+        seriesTitle: 'Serie entfernen?',
+        episodeTitle: 'Folge entfernen?',
+        seriesMessage: (name, list) => `Die bisherigen Folgen von „${name}“ werden aus „${list}“ entfernt. Später gestartete Folgen können wieder erscheinen. Dein Wiedergabestand bleibt unverändert.`,
+        episodeMessage: name => `„${name}“ wird aus „Weiterschauen“ entfernt. Dein Wiedergabestand bleibt unverändert.`,
         cancel: 'Abbrechen',
         remove: 'Entfernen',
-        removed: 'Serie wurde entfernt.',
+        seriesRemoved: 'Serie wurde entfernt.',
+        episodeRemoved: 'Folge wurde entfernt.',
         undo: 'Rückgängig',
-        failed: 'Die Serie konnte nicht entfernt werden.',
+        failed: 'Der Eintrag konnte nicht entfernt werden.',
         continueLabel: 'Weiterschauen',
         nextLabel: 'Als Nächstes'
     }
     : {
-        continueWatching: 'Remove series from Continue Watching',
+        continueWatchingSeries: 'Remove series from Continue Watching',
+        continueWatchingEpisode: 'Remove episode from Continue Watching',
         nextUp: 'Remove series from Next Up',
-        title: 'Remove series?',
-        message: (name, list) => `“${name}” will be removed from “${list}”. Your playback progress will not change.`,
+        seriesTitle: 'Remove series?',
+        episodeTitle: 'Remove episode?',
+        seriesMessage: (name, list) => `Existing episodes of “${name}” will be removed from “${list}”. Episodes played later can appear again. Your playback progress will not change.`,
+        episodeMessage: name => `“${name}” will be removed from “Continue Watching”. Your playback progress will not change.`,
         cancel: 'Cancel',
         remove: 'Remove',
-        removed: 'Series removed.',
+        seriesRemoved: 'Series removed.',
+        episodeRemoved: 'Episode removed.',
         undo: 'Undo',
-        failed: 'The series could not be removed.',
+        failed: 'The item could not be removed.',
         continueLabel: 'Continue Watching',
         nextLabel: 'Next Up'
     };
@@ -59,6 +67,12 @@ export function getItemId(element) {
     return normalizeId(link?.href);
 }
 
+export function actionModesForSurface(surface) {
+    if (surface === 'continue-watching') return ['episode', 'series'];
+    if (surface === 'next-up') return ['series'];
+    return [];
+}
+
 function rememberItems(payload, surface) {
     const items = payload?.Items || payload?.items || [];
     for (const item of items) {
@@ -68,7 +82,8 @@ function rememberItems(payload, surface) {
         const current = itemSurfaces.get(itemId) || new Map();
         current.set(surface, {
             seriesId,
-            seriesName: item.SeriesName || item.seriesName || item.Name || item.name || 'Series'
+            seriesName: item.SeriesName || item.seriesName || item.Name || item.name || 'Series',
+            episodeName: item.Name || item.name || 'Episode'
         });
         itemSurfaces.set(itemId, current);
     }
@@ -110,20 +125,23 @@ function captureContext(event) {
     }
 }
 
-function createActionButton(context) {
+function createActionButton(context, mode) {
     const button = document.createElement('button');
     button.type = 'button';
     button.setAttribute('is', 'emby-button');
-    button.className = 'listItem listItem-button actionSheetMenuItem emby-button removeSeriesAction';
-    button.innerHTML = `<span class="listItemIcon material-icons" aria-hidden="true">playlist_remove</span><div class="listItemBody"><div class="listItemBodyText">${context.surface === 'continue-watching' ? text.continueWatching : text.nextUp}</div></div>`;
-    button.addEventListener('click', () => removeSeries(context));
+    button.className = `listItem listItem-button actionSheetMenuItem emby-button removeSeriesAction removeSeriesAction-${mode}`;
+    const label = mode === 'episode'
+        ? text.continueWatchingEpisode
+        : context.surface === 'continue-watching' ? text.continueWatchingSeries : text.nextUp;
+    button.innerHTML = `<span class="listItemIcon material-icons" aria-hidden="true">playlist_remove</span><div class="listItemBody"><div class="listItemBodyText">${label}</div></div>`;
+    button.addEventListener('click', () => removeTarget(context, mode));
     return button;
 }
 
 function injectAction(sheet) {
     if (sheet.querySelector('.removeSeriesAction') || !lastContext || Date.now() - lastContext.capturedAt > 5000) return;
     const container = sheet.querySelector('.actionSheetScroller, .scrollSlider') || sheet;
-    container.appendChild(createActionButton(lastContext));
+    actionModesForSurface(lastContext.surface).forEach(mode => container.appendChild(createActionButton(lastContext, mode)));
 }
 
 function scanActionSheets(root = document) {
@@ -145,34 +163,41 @@ function authHeaders() {
     };
 }
 
-async function removeSeries(context) {
+async function removeTarget(context, mode) {
     const listName = context.surface === 'continue-watching' ? text.continueLabel : text.nextLabel;
-    if (!await confirmDialog(text.message(context.seriesName, listName))) return;
+    const title = mode === 'episode' ? text.episodeTitle : text.seriesTitle;
+    const message = mode === 'episode'
+        ? text.episodeMessage(context.episodeName)
+        : text.seriesMessage(context.seriesName, listName);
+    if (!await confirmDialog(title, message)) return;
     try {
         const response = await fetch(apiUrl('/RemoveSeries/Exclusions'), {
             method: 'POST',
             headers: authHeaders(),
             credentials: 'same-origin',
-            body: JSON.stringify({ itemId: context.itemId, surface: context.surface })
+            body: JSON.stringify({ itemId: context.itemId, surface: context.surface, mode })
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const result = await response.json();
-        const seriesId = normalizeId(result.seriesId || result.SeriesId) || context.seriesId;
-        const hiddenCards = hideSeriesCards(seriesId, context.surface);
+        const targetId = normalizeId(result.targetId || result.TargetId)
+            || (mode === 'episode' ? context.itemId : context.seriesId);
+        const hiddenCards = hideCards(context, mode);
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
-        showToast(text.removed, text.undo, () => undoRemoval(seriesId, context.surface, hiddenCards));
+        showToast(mode === 'episode' ? text.episodeRemoved : text.seriesRemoved, text.undo,
+            () => undoRemoval(targetId, context.surface, mode, hiddenCards));
     } catch (error) {
         console.error('[RemoveSeries]', error);
         showToast(text.failed);
     }
 }
 
-function hideSeriesCards(seriesId, surface) {
+function hideCards(context, mode) {
     const hidden = [];
     document.querySelectorAll('.card').forEach(card => {
         const itemId = getItemId(card);
-        const info = itemSurfaces.get(itemId)?.get(surface);
-        if (info?.seriesId === seriesId && detectSurface(card, itemId) === surface) {
+        const info = itemSurfaces.get(itemId)?.get(context.surface);
+        const matches = mode === 'episode' ? itemId === context.itemId : info?.seriesId === context.seriesId;
+        if (matches && detectSurface(card, itemId) === context.surface) {
             hidden.push({ card, display: card.style.display });
             card.style.display = 'none';
         }
@@ -180,9 +205,9 @@ function hideSeriesCards(seriesId, surface) {
     return hidden;
 }
 
-async function undoRemoval(seriesId, surface, hiddenCards) {
+async function undoRemoval(targetId, surface, mode, hiddenCards) {
     try {
-        const response = await fetch(apiUrl(`/RemoveSeries/Exclusions/${surface}/${seriesId}`), {
+        const response = await fetch(apiUrl(`/RemoveSeries/Exclusions/${surface}/${mode}/${targetId}`), {
             method: 'DELETE',
             headers: authHeaders(),
             credentials: 'same-origin'
@@ -195,11 +220,12 @@ async function undoRemoval(seriesId, surface, hiddenCards) {
     }
 }
 
-function confirmDialog(message) {
+function confirmDialog(title, message) {
     return new Promise(resolve => {
         const overlay = document.createElement('div');
         overlay.className = 'removeSeriesOverlay';
-        overlay.innerHTML = `<div class="removeSeriesDialog" role="dialog" aria-modal="true" aria-labelledby="removeSeriesTitle"><h2 id="removeSeriesTitle">${text.title}</h2><p></p><div><button class="removeSeriesCancel">${text.cancel}</button><button class="removeSeriesConfirm">${text.remove}</button></div></div>`;
+        overlay.innerHTML = `<div class="removeSeriesDialog" role="dialog" aria-modal="true" aria-labelledby="removeSeriesTitle"><h2 id="removeSeriesTitle"></h2><p></p><div><button class="removeSeriesCancel">${text.cancel}</button><button class="removeSeriesConfirm">${text.remove}</button></div></div>`;
+        overlay.querySelector('h2').textContent = title;
         overlay.querySelector('p').textContent = message;
         const finish = result => { overlay.remove(); resolve(result); };
         overlay.querySelector('.removeSeriesCancel').addEventListener('click', () => finish(false));

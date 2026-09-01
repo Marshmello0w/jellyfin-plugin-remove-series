@@ -38,20 +38,58 @@ public sealed class ExclusionsController : ControllerBase
             return BadRequest("surface must be 'continue-watching' or 'next-up'.");
         }
 
-        if (_libraryManager.GetItemById(request.ItemId) is not Episode episode || episode.SeriesId == Guid.Empty)
+        if (request.ItemId == Guid.Empty
+            || _libraryManager.GetItemById(request.ItemId) is not Episode episode
+            || episode.SeriesId == Guid.Empty)
         {
             return BadRequest("itemId must reference an episode with a series.");
         }
 
-        await _store.AddAsync(userId.Value, episode.SeriesId, surface, cancellationToken).ConfigureAwait(false);
+        string mode = request.Mode?.Trim().ToLowerInvariant() ?? "series";
+        if (mode is not ("series" or "episode"))
+        {
+            return BadRequest("mode must be 'series' or 'episode'.");
+        }
+
+        if (surface == ExclusionSurface.NextUp && mode == "episode")
+        {
+            return BadRequest("next-up exclusions can only target a series.");
+        }
+
+        Guid targetId;
+        if (surface == ExclusionSurface.ContinueWatching && mode == "episode")
+        {
+            targetId = episode.Id;
+            await _store.AddContinueWatchingEpisodeAsync(userId.Value, targetId, cancellationToken).ConfigureAwait(false);
+        }
+        else if (surface == ExclusionSurface.ContinueWatching)
+        {
+            targetId = episode.SeriesId;
+            await _store.AddContinueWatchingSeriesCutoffAsync(userId.Value, targetId, DateTime.UtcNow, cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            targetId = episode.SeriesId;
+            await _store.AddNextUpSeriesAsync(userId.Value, targetId, cancellationToken).ConfigureAwait(false);
+        }
+
         string seriesName = _libraryManager.GetItemById(episode.SeriesId)?.Name ?? episode.Name;
-        return Ok(new ExclusionResponse(episode.SeriesId, seriesName, surface.ToWireValue()));
+        return Ok(new ExclusionResponse(targetId, episode.SeriesId, seriesName, episode.Name, surface.ToWireValue(), mode));
     }
 
+    [Obsolete("Use the mode-aware endpoint.")]
     [HttpDelete("{surface}/{seriesId:guid}")]
-    public async Task<IActionResult> RemoveAsync(
+    public Task<IActionResult> RemoveLegacyAsync(
         string surface,
         Guid seriesId,
+        CancellationToken cancellationToken) =>
+        RemoveAsync(surface, "series", seriesId, cancellationToken);
+
+    [HttpDelete("{surface}/{mode}/{targetId:guid}")]
+    public async Task<IActionResult> RemoveAsync(
+        string surface,
+        string mode,
+        Guid targetId,
         CancellationToken cancellationToken)
     {
         Guid? userId = CurrentUser.GetId(User);
@@ -65,12 +103,40 @@ public sealed class ExclusionsController : ControllerBase
             return BadRequest("surface must be 'continue-watching' or 'next-up'.");
         }
 
-        await _store.RemoveAsync(userId.Value, seriesId, parsedSurface, cancellationToken).ConfigureAwait(false);
+        string normalizedMode = mode.Trim().ToLowerInvariant();
+        if (normalizedMode is not ("series" or "episode"))
+        {
+            return BadRequest("mode must be 'series' or 'episode'.");
+        }
+
+        if (parsedSurface == ExclusionSurface.NextUp && normalizedMode == "episode")
+        {
+            return BadRequest("next-up exclusions can only target a series.");
+        }
+
+        if (parsedSurface == ExclusionSurface.ContinueWatching && normalizedMode == "episode")
+        {
+            await _store.RemoveContinueWatchingEpisodeAsync(userId.Value, targetId, cancellationToken).ConfigureAwait(false);
+        }
+        else if (parsedSurface == ExclusionSurface.ContinueWatching)
+        {
+            await _store.RemoveContinueWatchingSeriesCutoffAsync(userId.Value, targetId, cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            await _store.RemoveNextUpSeriesAsync(userId.Value, targetId, cancellationToken).ConfigureAwait(false);
+        }
+
         return NoContent();
     }
 }
 
-public sealed record ExclusionRequest(Guid ItemId, string Surface);
+public sealed record ExclusionRequest(Guid ItemId, string Surface, string? Mode = null);
 
-public sealed record ExclusionResponse(Guid SeriesId, string SeriesName, string Surface);
-
+public sealed record ExclusionResponse(
+    Guid TargetId,
+    Guid SeriesId,
+    string SeriesName,
+    string EpisodeName,
+    string Surface,
+    string Mode);

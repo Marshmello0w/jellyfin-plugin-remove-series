@@ -1,15 +1,17 @@
 # Remove Series for Jellyfin
 
-`Remove Series` adds non-destructive actions to Jellyfin's **Continue Watching** and **Next Up** rows. A user can hide an entire series from either row without changing watched flags or playback positions.
+`Remove Series` adds non-destructive actions to Jellyfin's **Continue Watching** and **Next Up** rows. A user can hide one episode or the current entries of a series without changing watched flags or playback positions.
 
 ## Features
 
-- Separate **Remove series from Continue Watching** and **Remove series from Next Up** actions.
+- **Remove episode from Continue Watching** hides only the selected episode.
+- **Remove series from Continue Watching** hides the episodes that were already present at that moment. Episodes played afterward can appear normally without restoring the older entries.
+- **Remove series from Next Up** remains series-wide.
 - Works from right-click, the three-dot action menu, and touch/long-press in Jellyfin Web.
 - Hides every episode of that series from the selected row.
 - Stores exclusions per user on the Jellyfin server, so the result also applies to native clients.
 - Shows a confirmation and an eight-second Undo action.
-- Starting any episode of the series removes both exclusions automatically.
+- Starting an individually hidden episode makes only that episode eligible again. Starting an episode also re-enables the series in Next Up.
 - German and English web-interface text.
 
 ## Requirements
@@ -39,7 +41,7 @@ The menu integration modifies Jellyfin Web only. Once an exclusion has been crea
 
 ## Usage
 
-Open the action menu of an episode card in **Continue Watching** or **Next Up**, choose the new Remove Series action, and confirm. Only the selected home row is changed. Playback progress and watched state remain exactly as they were.
+Open the action menu of an episode card in **Continue Watching** or **Next Up**, choose the episode or series action, and confirm. Only the selected home row is changed. Playback progress and watched state remain exactly as they were.
 
 If removal was accidental, select **Undo** in the confirmation toast. Playing any episode from the series detail page also makes the series eligible for both rows again.
 

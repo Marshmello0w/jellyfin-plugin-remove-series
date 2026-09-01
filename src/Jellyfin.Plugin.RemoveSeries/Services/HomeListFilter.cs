@@ -43,8 +43,7 @@ public sealed class HomeListFilter : IAsyncActionFilter
         }
 
         ExclusionDocument snapshot = await _store.GetSnapshotAsync(userId.Value, context.HttpContext.RequestAborted).ConfigureAwait(false);
-        HashSet<Guid> excluded = snapshot.For(surface);
-        if (excluded.Count == 0)
+        if (!HasExclusions(snapshot, surface))
         {
             await next().ConfigureAwait(false);
             return;
@@ -65,9 +64,7 @@ public sealed class HomeListFilter : IAsyncActionFilter
             return;
         }
 
-        List<BaseItemDto> kept = result.Items
-            .Where(item => !item.SeriesId.HasValue || !excluded.Contains(item.SeriesId.Value))
-            .ToList();
+        List<BaseItemDto> kept = result.Items.Where(item => !IsExcluded(item, snapshot, surface)).ToList();
         int removed = result.Items.Count - kept.Count;
         if (removed == 0)
         {
@@ -79,6 +76,33 @@ public sealed class HomeListFilter : IAsyncActionFilter
             Math.Max(0, result.TotalRecordCount - removed),
             kept);
     }
+
+    internal static bool IsExcluded(BaseItemDto item, ExclusionDocument snapshot, ExclusionSurface surface)
+    {
+        if (surface == ExclusionSurface.NextUp)
+        {
+            return item.SeriesId.HasValue && snapshot.NextUp.Contains(item.SeriesId.Value);
+        }
+
+        if (snapshot.ContinueWatching.Contains(item.Id))
+        {
+            return true;
+        }
+
+        if (!item.SeriesId.HasValue
+            || !snapshot.ContinueWatchingSeriesCutoffs.TryGetValue(item.SeriesId.Value, out DateTime cutoff))
+        {
+            return false;
+        }
+
+        DateTime? lastPlayed = item.UserData?.LastPlayedDate;
+        return !lastPlayed.HasValue || lastPlayed.Value.ToUniversalTime() <= cutoff.ToUniversalTime();
+    }
+
+    private static bool HasExclusions(ExclusionDocument snapshot, ExclusionSurface surface) =>
+        surface == ExclusionSurface.NextUp
+            ? snapshot.NextUp.Count > 0
+            : snapshot.ContinueWatching.Count > 0 || snapshot.ContinueWatchingSeriesCutoffs.Count > 0;
 
     internal static bool TryGetSurface(ActionExecutingContext context, out ExclusionSurface surface)
     {

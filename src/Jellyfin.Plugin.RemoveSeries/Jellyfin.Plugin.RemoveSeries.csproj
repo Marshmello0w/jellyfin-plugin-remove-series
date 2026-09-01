@@ -17,4 +17,3 @@
     <EmbeddedResource Include="Web\plugin.mjs" />
   </ItemGroup>
 </Project>
-

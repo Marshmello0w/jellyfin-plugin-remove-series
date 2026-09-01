@@ -3,7 +3,7 @@
     "category": "General",
     "guid": "bd12e7ab-7f62-42c2-8eb2-41f59f24d117",
     "name": "Remove Series",
-    "description": "Remove a series from Continue Watching or Next Up without changing playback progress or watched state.",
+    "description": "Remove episodes or existing series entries from Continue Watching, or a series from Next Up, without changing playback progress or watched state.",
     "owner": "Marshmello0w",
     "overview": "Non-destructive per-user cleanup for Jellyfin home rows.",
     "versions": [

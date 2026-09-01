@@ -24,8 +24,9 @@ jobs:
       - name: Test and build
         shell: pwsh
         run: |
+          $version = "${{ github.ref_name }}".Substring(1) + ".0"
           dotnet restore Jellyfin.Plugin.RemoveSeries.slnx
-          dotnet build Jellyfin.Plugin.RemoveSeries.slnx --configuration Release --no-restore
+          dotnet build Jellyfin.Plugin.RemoveSeries.slnx --configuration Release --no-restore -p:Version=$version -p:AssemblyVersion=$version -p:FileVersion=$version
           dotnet test Jellyfin.Plugin.RemoveSeries.slnx --configuration Release --no-build
           npm test
           $document = [System.Text.Json.JsonDocument]::Parse((Get-Content manifest.json -Raw))

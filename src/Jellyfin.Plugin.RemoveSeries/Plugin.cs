@@ -19,8 +19,7 @@ public sealed class Plugin : BasePlugin<PluginConfiguration>
 
     public override string Name => "Remove Series";
 
-    public override string Description => "Removes a series from Continue Watching or Next Up without changing playback progress.";
+    public override string Description => "Removes episodes or existing series entries from Continue Watching, or a series from Next Up, without changing playback progress.";
 
     public override Guid Id => PluginId;
 }
-

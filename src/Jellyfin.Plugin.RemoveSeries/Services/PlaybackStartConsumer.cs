@@ -28,12 +28,12 @@ public sealed class PlaybackStartConsumer : IEventConsumer<PlaybackStartEventArg
 
         try
         {
-            await _store.RemoveAllAsync(userId, episode.SeriesId).ConfigureAwait(false);
+            await _store.RemoveContinueWatchingEpisodeAsync(userId, episode.Id).ConfigureAwait(false);
+            await _store.RemoveNextUpSeriesAsync(userId, episode.SeriesId).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
-            _logger.LogWarning(exception, "Could not reactivate series {SeriesId} for user {UserId} after playback started.", episode.SeriesId, userId);
+            _logger.LogWarning(exception, "Could not reactivate episode {EpisodeId} for user {UserId} after playback started.", episode.Id, userId);
         }
     }
 }
-
