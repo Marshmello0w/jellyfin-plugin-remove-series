@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="src/Jellyfin.Plugin.RemoveSeries/Jellyfin.Plugin.RemoveSeries.csproj" />
+  <Project Path="tests/Jellyfin.Plugin.RemoveSeries.Tests/Jellyfin.Plugin.RemoveSeries.Tests.csproj" />
+</Solution>
+

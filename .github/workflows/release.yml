@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Test and build
+        shell: pwsh
+        run: |
+          dotnet restore Jellyfin.Plugin.RemoveSeries.slnx
+          dotnet build Jellyfin.Plugin.RemoveSeries.slnx --configuration Release --no-restore
+          dotnet test Jellyfin.Plugin.RemoveSeries.slnx --configuration Release --no-build
+          npm test
+      - name: Package release
+        id: package
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.Substring(1) + ".0"
+          $assetName = "jellyfin-plugin-remove-series_$version.zip"
+          New-Item -ItemType Directory -Path artifacts/package -Force | Out-Null
+          Copy-Item "src/Jellyfin.Plugin.RemoveSeries/bin/Release/net9.0/Jellyfin.Plugin.RemoveSeries.dll" artifacts/package/
+          Copy-Item README.md, LICENSE artifacts/package/
+          Compress-Archive -Path artifacts/package/* -DestinationPath "artifacts/$assetName"
+          $checksum = (Get-FileHash "artifacts/$assetName" -Algorithm MD5).Hash.ToLowerInvariant()
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "asset_name=$assetName" >> $env:GITHUB_OUTPUT
+          "checksum=$checksum" >> $env:GITHUB_OUTPUT
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh release create "${{ github.ref_name }}" "artifacts/${{ steps.package.outputs.asset_name }}" --title "Remove Series ${{ steps.package.outputs.version }}" --generate-notes
+      - name: Update Jellyfin manifest
+        shell: pwsh
+        run: |
+          $manifest = @(Get-Content manifest.json -Raw | ConvertFrom-Json)
+          $plugin = $manifest[0]
+          $version = "${{ steps.package.outputs.version }}"
+          $entry = [pscustomobject]@{
+            version = $version
+            changelog = "See the linked GitHub release notes."
+            targetAbi = "10.11.0.0"
+            sourceUrl = "https://github.com/Marshmello0w/jellyfin-plugin-remove-series/releases/download/${{ github.ref_name }}/${{ steps.package.outputs.asset_name }}"
+            checksum = "${{ steps.package.outputs.checksum }}"
+            timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+          }
+          $plugin.versions = @($entry) + @($plugin.versions | Where-Object { $_.version -ne $version })
+          @($plugin) | ConvertTo-Json -Depth 8 | Set-Content manifest.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add manifest.json
+          git commit -m "chore: publish $version manifest" || exit 0
+          git push origin HEAD:main

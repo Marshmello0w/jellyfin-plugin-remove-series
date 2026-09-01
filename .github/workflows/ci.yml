@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Restore
+        run: dotnet restore Jellyfin.Plugin.RemoveSeries.slnx
+      - name: Build
+        run: dotnet build Jellyfin.Plugin.RemoveSeries.slnx --configuration Release --no-restore
+      - name: Server tests
+        run: dotnet test Jellyfin.Plugin.RemoveSeries.slnx --configuration Release --no-build
+      - name: Web tests
+        run: npm test
+
