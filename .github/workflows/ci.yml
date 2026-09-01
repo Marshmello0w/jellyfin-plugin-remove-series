@@ -24,4 +24,13 @@ jobs:
         run: dotnet test Jellyfin.Plugin.RemoveSeries.slnx --configuration Release --no-build
       - name: Web tests
         run: npm test
-
+      - name: Validate Jellyfin plugin catalog
+        shell: pwsh
+        run: |
+          $document = [System.Text.Json.JsonDocument]::Parse((Get-Content manifest.json -Raw))
+          if ($document.RootElement.ValueKind -ne [System.Text.Json.JsonValueKind]::Array) {
+            throw "manifest.json must contain a JSON array."
+          }
+          if ($document.RootElement.GetArrayLength() -eq 0) {
+            throw "manifest.json must contain at least one plugin."
+          }
