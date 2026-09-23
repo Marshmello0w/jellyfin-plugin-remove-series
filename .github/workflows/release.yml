@@ -17,7 +17,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 9.0.x
+          dotnet-version: 10.0.x
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -41,7 +41,7 @@ jobs:
           $version = $tag.Substring(1) + ".0"
           $assetName = "jellyfin-plugin-remove-series_$version.zip"
           New-Item -ItemType Directory -Path artifacts/package -Force | Out-Null
-          Copy-Item "src/Jellyfin.Plugin.RemoveSeries/bin/Release/net9.0/Jellyfin.Plugin.RemoveSeries.dll" artifacts/package/
+          Copy-Item "src/Jellyfin.Plugin.RemoveSeries/bin/Release/net10.0/Jellyfin.Plugin.RemoveSeries.dll" artifacts/package/
           Copy-Item README.md, LICENSE artifacts/package/
           Compress-Archive -Path artifacts/package/* -DestinationPath "artifacts/$assetName"
           $checksum = (Get-FileHash "artifacts/$assetName" -Algorithm MD5).Hash.ToLowerInvariant()
@@ -63,7 +63,7 @@ jobs:
           $entry = [pscustomobject]@{
             version = $version
             changelog = "See the linked GitHub release notes."
-            targetAbi = "10.11.0.0"
+            targetAbi = "12.1.0.0"
             sourceUrl = "https://github.com/Marshmello0w/jellyfin-plugin-remove-series/releases/download/${{ github.ref_name }}/${{ steps.package.outputs.asset_name }}"
             checksum = "${{ steps.package.outputs.checksum }}"
             timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")

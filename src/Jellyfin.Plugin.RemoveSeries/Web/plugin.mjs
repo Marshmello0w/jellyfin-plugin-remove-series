@@ -103,6 +103,33 @@ function patchFetch() {
     };
 }
 
+function patchXhr() {
+    if (window.__removeSeriesXhrPatched) return;
+    window.__removeSeriesXhrPatched = true;
+    const originalOpen = XMLHttpRequest.prototype.open;
+    const originalSend = XMLHttpRequest.prototype.send;
+    const surfaces = new WeakMap();
+    XMLHttpRequest.prototype.open = function patchedOpen(method, url, ...rest) {
+        surfaces.set(this, classifyRequest(url));
+        return originalOpen.call(this, method, url, ...rest);
+    };
+    XMLHttpRequest.prototype.send = function patchedSend(...args) {
+        const surface = surfaces.get(this);
+        if (surface) {
+            this.addEventListener('load', () => {
+                if (this.status < 200 || this.status >= 300) return;
+                try {
+                    const payload = typeof this.response === 'string'
+                        ? JSON.parse(this.response)
+                        : this.response;
+                    rememberItems(payload, surface);
+                } catch { /* Ignore non-JSON responses. */ }
+            }, { once: true });
+        }
+        return originalSend.apply(this, args);
+    };
+}
+
 function detectSurface(card, itemId) {
     const section = card?.closest?.('.homeSection, section, .verticalSection');
     const heading = section?.querySelector?.('.sectionTitle, h2, h3')?.textContent?.trim().toLowerCase() || '';
@@ -154,12 +181,12 @@ function apiUrl(path) {
     return new URL(`../${path.replace(/^\//, '')}`, document.baseURI).href;
 }
 
-function authHeaders() {
+export function authHeaders() {
     const client = window.ApiClient || window.apiClient;
     const token = typeof client?.accessToken === 'function' ? client.accessToken() : client?.accessToken;
     return {
         'Content-Type': 'application/json',
-        ...(token ? { 'X-Emby-Token': token } : {})
+        ...(token ? { Authorization: `MediaBrowser Token="${token}"` } : {})
     };
 }
 
@@ -261,6 +288,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     (window.__removeSeriesEarly || []).forEach(([payload, surface]) => rememberItems(payload, surface));
     window.__removeSeriesCaptureHandler = rememberItems;
     patchFetch();
+    patchXhr();
     addStyles();
     document.addEventListener('contextmenu', captureContext, true);
     document.addEventListener('click', captureContext, true);

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 globalThis.document = { baseURI: 'https://example.test/jellyfin/web/' };
 
-const { normalizeId, classifyRequest, getItemId, actionModesForSurface } = await import('../../src/Jellyfin.Plugin.RemoveSeries/Web/plugin.mjs');
+const { normalizeId, classifyRequest, getItemId, actionModesForSurface, authHeaders } = await import('../../src/Jellyfin.Plugin.RemoveSeries/Web/plugin.mjs');
 
 test('normalizeId accepts dashed and compact Jellyfin ids', () => {
     assert.equal(normalizeId('44cb2f44-5d12-46eb-9234-93e78ea35d2e'), '44cb2f445d1246eb923493e78ea35d2e');
@@ -34,4 +34,13 @@ test('Continue Watching offers episode and series actions while Next Up stays se
     assert.deepEqual(actionModesForSurface('continue-watching'), ['episode', 'series']);
     assert.deepEqual(actionModesForSurface('next-up'), ['series']);
     assert.deepEqual(actionModesForSurface(null), []);
+});
+
+test('Jellyfin 12 authorization uses the MediaBrowser scheme', () => {
+    globalThis.window = { ApiClient: { accessToken: () => 'test-token' } };
+    assert.deepEqual(authHeaders(), {
+        'Content-Type': 'application/json',
+        Authorization: 'MediaBrowser Token="test-token"'
+    });
+    delete globalThis.window;
 });

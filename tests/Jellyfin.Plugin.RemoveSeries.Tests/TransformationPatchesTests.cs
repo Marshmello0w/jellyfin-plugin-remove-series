@@ -13,6 +13,8 @@ public sealed class TransformationPatchesTests
         string second = TransformationPatches.IndexHtml(new PatchRequestPayload { Contents = first });
 
         Assert.Contains("<head><script data-remove-series-loader>", first, StringComparison.Ordinal);
+        Assert.Contains("XMLHttpRequest.prototype.open", first, StringComparison.Ordinal);
+        Assert.Contains("__removeSeriesXhrPatched", first, StringComparison.Ordinal);
         Assert.Equal(first, second);
     }
 
@@ -22,4 +24,3 @@ public sealed class TransformationPatchesTests
         Assert.Equal(string.Empty, TransformationPatches.IndexHtml(new PatchRequestPayload()));
     }
 }
-

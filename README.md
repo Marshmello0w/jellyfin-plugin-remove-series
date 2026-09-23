@@ -16,8 +16,8 @@
 
 ## Requirements
 
-- Jellyfin Server 10.11.x
-- [File Transformation](https://github.com/IAmParadox27/jellyfin-plugin-file-transformation)
+- Jellyfin Server 12.1.x (use Remove Series 1.1.1 for Jellyfin 10.11.x)
+- [File Transformation](https://github.com/IAmParadox27/jellyfin-plugin-file-transformation) 3.0.1.0 for Jellyfin 12.1
 
 The menu integration modifies Jellyfin Web only. Once an exclusion has been created, the server-side filtering also affects other Jellyfin clients for that user.
 
@@ -37,17 +37,17 @@ The menu integration modifies Jellyfin Web only. Once an exclusion has been crea
    ```
 
 4. Install **File Transformation**, then install **Remove Series**.
-5. Restart Jellyfin and hard-refresh Jellyfin Web once.
+5. Restart Jellyfin and hard-refresh Jellyfin Web once. The catalog selects the version matching your Jellyfin server ABI.
 
 ## Usage
 
 Open the action menu of an episode card in **Continue Watching** or **Next Up**, choose the episode or series action, and confirm. Only the selected home row is changed. Playback progress and watched state remain exactly as they were.
 
-If removal was accidental, select **Undo** in the confirmation toast. Playing any episode from the series detail page also makes the series eligible for both rows again.
+If removal was accidental, select **Undo** in the confirmation toast. Playing an individually hidden episode makes that episode eligible again; other previously hidden episodes stay hidden. Playing an episode also makes the series eligible for **Next Up** again.
 
 ## Privacy and data
 
-The plugin stores only Jellyfin user IDs and series IDs in its own data directory. It never writes to Jellyfin user data, playback positions, watched flags, media metadata, or media files.
+The plugin stores only Jellyfin user IDs, series IDs, episode IDs, and exclusion timestamps in its own data directory. It never writes to Jellyfin user data, playback positions, watched flags, media metadata, or media files.
 
 ## Development
 
