@@ -8,8 +8,8 @@ const text = navigator.language?.toLowerCase().startsWith('de')
         nextUp: 'Serie aus Als Nächstes entfernen',
         seriesTitle: 'Serie entfernen?',
         episodeTitle: 'Folge entfernen?',
-        seriesMessage: (name, list) => `Die bisherigen Folgen von „${name}“ werden aus „${list}“ entfernt. Später gestartete Folgen können wieder erscheinen. Dein Wiedergabestand bleibt unverändert.`,
-        episodeMessage: name => `„${name}“ wird aus „Weiterschauen“ entfernt. Dein Wiedergabestand bleibt unverändert.`,
+        seriesMessage: (name, list) => `Die bisherigen Folgen ${name ? `von „${name}“` : 'dieser Serie'} werden aus „${list}“ entfernt. Später gestartete Folgen können wieder erscheinen. Dein Wiedergabestand bleibt unverändert.`,
+        episodeMessage: name => `${name ? `„${name}“` : 'Diese Folge'} wird aus „Weiterschauen“ entfernt. Dein Wiedergabestand bleibt unverändert.`,
         cancel: 'Abbrechen',
         remove: 'Entfernen',
         seriesRemoved: 'Serie wurde entfernt.',
@@ -25,8 +25,8 @@ const text = navigator.language?.toLowerCase().startsWith('de')
         nextUp: 'Remove series from Next Up',
         seriesTitle: 'Remove series?',
         episodeTitle: 'Remove episode?',
-        seriesMessage: (name, list) => `Existing episodes of “${name}” will be removed from “${list}”. Episodes played later can appear again. Your playback progress will not change.`,
-        episodeMessage: name => `“${name}” will be removed from “Continue Watching”. Your playback progress will not change.`,
+        seriesMessage: (name, list) => `Existing episodes ${name ? `of “${name}”` : 'of this series'} will be removed from “${list}”. Episodes played later can appear again. Your playback progress will not change.`,
+        episodeMessage: name => `${name ? `“${name}”` : 'This episode'} will be removed from “Continue Watching”. Your playback progress will not change.`,
         cancel: 'Cancel',
         remove: 'Remove',
         seriesRemoved: 'Series removed.',
@@ -139,16 +139,26 @@ function detectSurface(card, itemId) {
     return known?.size === 1 ? known.keys().next().value : null;
 }
 
-function captureContext(event) {
+export function captureContext(event) {
     const card = event.target?.closest?.('.card');
     if (!card) return;
     if (event.type === 'click' && !event.target.closest('.btnCardOptions, [data-action="menu"], [aria-label*="More"], [aria-label*="Mehr"]')) return;
     if (event.type === 'pointerdown' && event.pointerType !== 'touch') return;
+    lastContext = null;
     const itemId = getItemId(card);
     const surface = itemId && detectSurface(card, itemId);
-    const item = surface && itemSurfaces.get(itemId)?.get(surface);
-    if (itemId && surface && item) {
-        lastContext = { itemId, surface, card, ...item, capturedAt: Date.now() };
+    if (itemId && surface && card.dataset?.type === 'Episode') {
+        const item = itemSurfaces.get(itemId)?.get(surface);
+        const seriesLink = card.querySelector?.('.textActionButton[data-type="Series"]');
+        lastContext = {
+            itemId,
+            surface,
+            card,
+            seriesId: item?.seriesId || normalizeId(seriesLink?.dataset?.id),
+            seriesName: item?.seriesName || seriesLink?.textContent?.trim() || null,
+            episodeName: item?.episodeName || null,
+            capturedAt: Date.now()
+        };
     }
 }
 
@@ -166,12 +176,15 @@ function createActionButton(context, mode) {
 }
 
 function injectAction(sheet) {
-    if (sheet.querySelector('.removeSeriesAction') || !lastContext || Date.now() - lastContext.capturedAt > 5000) return;
+    if (sheet.querySelector('.removeSeriesAction') || !lastContext || Date.now() - lastContext.capturedAt > 30000) return;
     const container = sheet.querySelector('.actionSheetScroller, .scrollSlider') || sheet;
     actionModesForSurface(lastContext.surface).forEach(mode => container.appendChild(createActionButton(lastContext, mode)));
 }
 
-function scanActionSheets(root = document) {
+export function scanActionSheets(root = document) {
+    if (root.matches?.('.actionSheet, .actionSheetContent')) {
+        injectAction(root.closest('.actionSheet') || root);
+    }
     root.querySelectorAll?.('.actionSheet:not(.hide), .actionSheetContent').forEach(node => injectAction(node.closest('.actionSheet') || node));
 }
 
@@ -208,6 +221,7 @@ async function removeTarget(context, mode) {
         const result = await response.json();
         const targetId = normalizeId(result.targetId || result.TargetId)
             || (mode === 'episode' ? context.itemId : context.seriesId);
+        context.seriesId = normalizeId(result.seriesId || result.SeriesId) || context.seriesId;
         const hiddenCards = hideCards(context, mode);
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
         showToast(mode === 'episode' ? text.episodeRemoved : text.seriesRemoved, text.undo,
@@ -223,7 +237,11 @@ function hideCards(context, mode) {
     document.querySelectorAll('.card').forEach(card => {
         const itemId = getItemId(card);
         const info = itemSurfaces.get(itemId)?.get(context.surface);
-        const matches = mode === 'episode' ? itemId === context.itemId : info?.seriesId === context.seriesId;
+        const seriesId = info?.seriesId
+            || normalizeId(card.querySelector?.('.textActionButton[data-type="Series"]')?.dataset?.id);
+        const matches = mode === 'episode'
+            ? itemId === context.itemId
+            : card === context.card || (context.seriesId && seriesId === context.seriesId);
         if (matches && detectSurface(card, itemId) === context.surface) {
             hidden.push({ card, display: card.style.display });
             card.style.display = 'none';

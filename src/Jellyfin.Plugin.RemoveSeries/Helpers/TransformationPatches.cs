@@ -59,7 +59,7 @@ public static partial class TransformationPatches
                 window.__removeSeriesXhrPatched = true;
                 var script = document.createElement('script');
                 script.type = 'module';
-                script.src = new URL('../RemoveSeries/Web/plugin.js?v=1.2.0.0', document.baseURI).href;
+                script.src = new URL('../RemoveSeries/Web/plugin.js?v=1.2.1.0', document.baseURI).href;
                 document.head.appendChild(script);
             }());</script>
             """;
